@@ -22,23 +22,31 @@ VertexInputDescription Vertex::getVertexDescription()
 	positionAttr.offset = offsetof(Vertex, position);
 	positionAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
 
-	//normal at location 2
+	//normal at location 1
 	VkVertexInputAttributeDescription normalAttr = {};
 	normalAttr.binding = 0;
 	normalAttr.location = 1;
 	normalAttr.offset = offsetof(Vertex, normal);
 	normalAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
 
-	//color at location 3
+	//color at location 2
 	VkVertexInputAttributeDescription colorAttr = {};
 	colorAttr.binding = 0;
 	colorAttr.location = 2;
 	colorAttr.offset = offsetof(Vertex, color);
 	colorAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
 
+	//UVs at location 3
+	VkVertexInputAttributeDescription UVAttr = {};
+	UVAttr.binding = 0;
+	UVAttr.location = 3;
+	UVAttr.offset = offsetof(Vertex, UV);
+	UVAttr.format = VK_FORMAT_R32G32_SFLOAT;
+
 	description.attributes.push_back(positionAttr);
 	description.attributes.push_back(normalAttr);
 	description.attributes.push_back(colorAttr);
+	description.attributes.push_back(UVAttr);
 	
 	return description;
 }
@@ -83,9 +91,25 @@ bool Mesh::loadFromObj(const char* filename)
 				tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
 
 				//Vertex normal
-				tinyobj::real_t nx = attrib.normals[3 * idx.vertex_index + 0];
-				tinyobj::real_t ny = attrib.normals[3 * idx.vertex_index + 1];
-				tinyobj::real_t nz = attrib.normals[3 * idx.vertex_index + 2];
+				tinyobj::real_t nx = 1;
+				tinyobj::real_t ny = 0;
+				tinyobj::real_t nz = 0;
+				if (idx.normal_index >= 0)
+				{
+					nx = attrib.normals[3 * idx.normal_index + 0];
+					ny = attrib.normals[3 * idx.normal_index + 1];
+					nz = attrib.normals[3 * idx.normal_index + 2];
+				}
+
+				tinyobj::real_t UVx = 0;
+				tinyobj::real_t UVy = 0;
+				if (idx.texcoord_index >= 0)
+				{
+					//Vertex UV
+					UVx = attrib.texcoords[2 * idx.texcoord_index + 0];
+					UVy = attrib.texcoords[2 * idx.texcoord_index + 1];
+				}
+
 
 				//copy it into our vertex
 				Vertex new_vert;
@@ -98,6 +122,9 @@ bool Mesh::loadFromObj(const char* filename)
 				new_vert.normal.z = nz;
 
 				new_vert.color = new_vert.normal;
+
+				new_vert.UV.x = UVx;
+				new_vert.UV.y = 1 - UVy; // vulkan inverted y
 
 				_vertices.push_back(new_vert);
 			}

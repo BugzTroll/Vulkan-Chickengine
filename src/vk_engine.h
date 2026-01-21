@@ -4,14 +4,36 @@
 #pragma once
 
 #include <vk_types.h>
-#include "vk_mesh.h"
 #include "glm/glm.hpp"
 
+#include "vk_mesh.h"
+#include "camera.h"
+
 constexpr unsigned int FRAME_OVERLAP = 2;
+
+struct Texture
+{
+	AllocatedImage image;
+	VkImageView imageView;
+};
+
+struct UploadContext
+{
+	VkFence _uploadFence;
+	VkCommandPool _commandPool;
+	VkCommandBuffer commandBuffer;
+};
 
 struct GPUObjectData
 {
 	glm::mat4 modelMatrix;
+};
+
+struct GPUCameraData
+{
+	glm::mat4 view;
+	glm::mat4 proj;
+	glm::mat4 viewProj;
 };
 
 struct GPUSceneData
@@ -21,13 +43,8 @@ struct GPUSceneData
 	glm::vec4 ambiantColor;
 	glm::vec4 sunlightDirection;
 	glm::vec4 sunlightColor;
-};
 
-struct GPUCameraData 
-{
-	glm::mat4 view;
-	glm::mat4 proj;
-	glm::mat4 viewProj;
+	GPUCameraData cameraData;
 };
 
 struct FrameData
@@ -40,8 +57,6 @@ struct FrameData
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
 
-	//camera UB
-	AllocatedBuffer _cameraBuffer;
 	VkDescriptorSet _globalDescriptor;
 
 	//objects transform SB
@@ -51,6 +66,7 @@ struct FrameData
 
 struct Material
 {
+	VkDescriptorSet textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 };
@@ -155,14 +171,26 @@ public:
 	//descriptor layout
 	VkDescriptorSetLayout _globalSetLayout;
 	VkDescriptorSetLayout _objectSetLayout;
+	VkDescriptorSetLayout _singleTextureSetLayout;
 	VkDescriptorPool _descriptorPool;
 
 	//Scene
 	GPUSceneData _sceneParameters;
 	AllocatedBuffer _sceneParameterBuffer;
 
+	// Materials and meshes
 	std::unordered_map<std::string, Material> _materials;
 	std::unordered_map<std::string, Mesh> _meshes;
+	std::unordered_map<std::string, Texture> _textures;
+
+	//upload contect
+	UploadContext _uploadContext;
+
+	//camera
+	Camera _camera;
+
+	//immediate submits, not synced with the renderr loop
+	void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)> && function);
 
 	Material* createMaterial(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
 	Mesh* getMesh(const std::string& name);
@@ -203,11 +231,15 @@ public:
 	//meshes
 	void loadMeshes();
 
+	void uploadMesh(Mesh& mesh);
+
+	//texture
+	void loadImages();
+
 	//scene
 	void initScene();
 
-	void uploadMesh(Mesh& mesh);
-
+	//buffer
 	AllocatedBuffer createBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
 

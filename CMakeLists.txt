@@ -15,28 +15,25 @@ set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
 add_subdirectory(src)
 
-find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)
+#find_program(SLANG_COMPILER slangc PATH "C:/Users/Marie/Downloads/slang-2026.1-windows-x86_64/bin/" NO_DEFAULT_PATH) //not working
+set(SLANG_COMPILER "C:/Users/Marie/Downloads/slang-2026.1-windows-x86_64/bin/slangc.exe")
 
-
-
-
-file(GLOB_RECURSE GLSL_SOURCE_FILES
-    "${PROJECT_SOURCE_DIR}/shaders/*.frag"
-    "${PROJECT_SOURCE_DIR}/shaders/*.vert"
-    "${PROJECT_SOURCE_DIR}/shaders/*.comp"
+file(GLOB_RECURSE SLANG_SOURCE_FILES
+    "${PROJECT_SOURCE_DIR}/shaders/*.slang"
     )
 
-foreach(GLSL ${GLSL_SOURCE_FILES})
+foreach(SLANG ${SLANG_SOURCE_FILES})
   message(STATUS "BUILDING SHADER")
-  get_filename_component(FILE_NAME ${GLSL} NAME)
+  get_filename_component(FILE_NAME ${SLANG} NAME_WE)
+  get_filename_component(FILE_NAME_EXT ${SLANG} NAME)
   set(SPIRV "${PROJECT_SOURCE_DIR}/shaders/${FILE_NAME}.spv")
-  message(STATUS ${GLSL})
+  message(STATUS ${SLANG} " -> " ${SPIRV})
   add_custom_command(
     OUTPUT ${SPIRV}
-    COMMAND ${GLSL_VALIDATOR} -V ${GLSL} -o ${SPIRV}
-    DEPENDS ${GLSL})
+    COMMAND ${SLANG_COMPILER} ${SLANG} -target spirv -o ${SPIRV}
+    DEPENDS ${SLANG})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
-endforeach(GLSL)
+endforeach(SLANG)
 
 add_custom_target(
     Shaders 

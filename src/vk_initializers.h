@@ -18,6 +18,8 @@ VkFenceCreateInfo fence_create_info(VkFenceCreateFlags flags = 0);
 
 VkSemaphoreCreateInfo semaphore_create_info(VkSemaphoreCreateFlags flags = 0);
 
+VkSubmitInfo submit_info(VkCommandBuffer* cmd);
+
 VkSubmitInfo2 submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo,
     VkSemaphoreSubmitInfo* waitSemaphoreInfo);
 VkPresentInfoKHR present_info();
@@ -55,5 +57,8 @@ VkPipelineRasterizationStateCreateInfo rasterizaion_state_create_info(VkPolygonM
 VkPipelineMultisampleStateCreateInfo multisampling_state_create_info();
 VkPipelineColorBlendAttachmentState color_blend_attachment_state();
 VkPipelineDepthStencilStateCreateInfo depth_stencil_create_info(bool bDepthTest, bool bDepthWrite, VkCompareOp compareOp);
+
+//samplers
+VkSamplerCreateInfo sampler_create_info(VkFilter filters, VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
 } // namespace vkinit

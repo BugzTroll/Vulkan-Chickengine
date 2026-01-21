@@ -60,6 +60,22 @@ VkSemaphoreCreateInfo vkinit::semaphore_create_info(VkSemaphoreCreateFlags flags
     info.flags = flags;
     return info;
 }
+VkSubmitInfo vkinit::submit_info(VkCommandBuffer* cmd)
+{
+    VkSubmitInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    info.pNext = nullptr;
+
+    info.waitSemaphoreCount = 0;
+    info.pWaitSemaphores = nullptr;
+    info.commandBufferCount = 1;
+    info.pCommandBuffers = cmd;
+    info.pWaitDstStageMask = nullptr;
+    info.signalSemaphoreCount = 0;
+    info.pSignalSemaphores = nullptr;
+
+    return info;
+}
 //< init_sync
 
 //> init_submit
@@ -414,5 +430,18 @@ VkPipelineDepthStencilStateCreateInfo vkinit::depth_stencil_create_info(bool bDe
     info.minDepthBounds = 0.f;
     info.maxDepthBounds = 1.f;
     info.stencilTestEnable = VK_FALSE;
+    return info;
+}
+
+VkSamplerCreateInfo vkinit::sampler_create_info(VkFilter filters, VkSamplerAddressMode samplerAddressMode)
+{
+    VkSamplerCreateInfo info = {};
+    info.pNext = nullptr;
+    info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    info.magFilter = filters;
+    info.minFilter = filters;
+    info.addressModeU = samplerAddressMode;
+    info.addressModeV = samplerAddressMode;
+    info.addressModeW = samplerAddressMode;
     return info;
 }
