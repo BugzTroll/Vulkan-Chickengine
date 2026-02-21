@@ -30,3 +30,16 @@ struct Mesh
 	bool loadFromObj(const char* filename);
 };
 
+struct GPUMeshBuffers
+{
+	AllocatedBuffer _indexBuffer;
+	AllocatedBuffer _vertexBuffer;
+	VkDeviceAddress vertexBufferAddress;
+};
+
+struct GPUDrawPushConstants 
+{
+	glm::mat4 worldMatrix;
+	VkDeviceAddress vertexBuffer;
+};
+

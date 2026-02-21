@@ -24,12 +24,37 @@ struct AllocatedBuffer
 {
     VkBuffer _buffer;
     VmaAllocation _allocation;
+    VmaAllocationInfo _info;
 };
 
 struct AllocatedImage
 {
     VkImage _image;
     VmaAllocation _allocation;
+    VkFormat _imageFormat;
+    VkExtent3D _imageExtent;
+    VkImageView _imageView;
+};
+
+enum class EMaterialPass
+{
+    MainColor,
+    Transparent,
+    Other
+};
+
+struct Material
+{
+    VkDescriptorSet textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
+    VkPipeline pipeline;
+    VkPipelineLayout layout;
+};
+
+struct MaterialInstance
+{
+    Material material;
+    VkDescriptorSet materialSet;
+    EMaterialPass passType;
 };
 
 #define VK_CHECK(x)                                                  \

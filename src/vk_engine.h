@@ -8,8 +8,78 @@
 
 #include "vk_mesh.h"
 #include "camera.h"
+#include "vk_descriptors.h"
+#include "vk_loader.h"
+#include "renderable.h"
 
 constexpr unsigned int FRAME_OVERLAP = 2;
+
+class VulkanEngine;
+
+struct GLTFMetallic_Roughness
+{
+	Material opaque;
+	Material transparent;
+
+	VkDescriptorSetLayout materialLayout;
+
+	struct MaterialConstants
+	{
+		glm::vec4 colorFactors;
+		glm::vec4 metalRoughFactors;
+		glm::vec4 extra[14];
+	};
+
+	struct MaterialResources
+	{
+		AllocatedImage colorImage;
+		VkSampler colorSampler;
+		AllocatedImage metalRoughImage;
+		VkSampler metalRoughSampler;
+		VkBuffer dataBuffer;
+		uint32_t dataBufferOffset;
+	};
+
+	DescriptorWriter descriptorWriter;
+
+	void buildPipelines(VulkanEngine* engine);
+	void clearResources(VkDevice device);
+
+	MaterialInstance writeMaterial(VkDevice device, EMaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator);
+};
+
+struct RenderingObject
+{
+	uint32_t indexCount;
+	uint32_t firstIndex;
+
+	VkBuffer indexBuffer;
+
+	MaterialInstance* material;
+
+	glm::mat4 transform;
+	VkDeviceAddress vertexBufferAddress;
+};
+
+struct DeletionQueue
+{
+	std::deque<std::function<void()>> deletors;
+
+	void pushFunction(std::function<void()>&& fn)
+	{
+		deletors.push_back(fn);
+	}
+
+	void flush()
+	{
+		for (auto it = deletors.begin(); it != deletors.end(); it++)
+		{
+			(*it)();
+		}
+
+		deletors.clear();
+	}
+};
 
 struct Texture
 {
@@ -50,25 +120,19 @@ struct GPUSceneData
 struct FrameData
 {
 	//sync structures
-	VkSemaphore _presentSemaphore, _renderSemaphore;
+	VkSemaphore _presentSemaphore;
 	VkFence _renderFence;
 
 	//cmd buffer
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
+	DeletionQueue _deletionQueue;
 
-	VkDescriptorSet _globalDescriptor;
+	DescriptorAllocatorGrowable _frameDescriptors;
 
 	//objects transform SB
 	AllocatedBuffer _objectBuffer;
 	VkDescriptorSet _objectDescriptor;
-};
-
-struct Material
-{
-	VkDescriptorSet textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
 };
 
 struct RenderObject
@@ -78,47 +142,26 @@ struct RenderObject
 	glm::mat4 transformMatrix;
 };
 
+struct RenderObject2
+{
+	uint32_t indexCount;
+	uint32_t firstIndex;
+	VkBuffer indexBuffer;
+	glm::mat4 transform;
+
+	MaterialInstance* materialInstance;
+	VkDeviceAddress vertexBufferAddress;
+};
+
+struct DrawContext
+{
+	std::vector<RenderObject2> OpaqueSurfaces;
+};
+
 struct MeshPushConstants
 {
 	glm::vec4 data;
 	glm::mat4 renderMatrix;
-};
-
-struct DeletionQueue
-{
-	std::deque<std::function<void()>> deletors;
-
-	void pushFunction(std::function<void()>&& fn)
-	{
-		deletors.push_back(fn);
-	}
-
-	void flush()
-	{
-		for (auto it = deletors.begin(); it != deletors.end(); it++)
-		{
-			(*it)();
-		}
-
-		deletors.clear();
-	}
-};
-
-class PipelineBuilder 
-{
-public:
-	std::vector<VkPipelineShaderStageCreateInfo> _shaderStages;
-	VkPipelineVertexInputStateCreateInfo _vertexInputInfo;
-	VkPipelineInputAssemblyStateCreateInfo _inputAssembly;
-	VkViewport _viewport;
-	VkRect2D _scissor;
-	VkPipelineRasterizationStateCreateInfo _rasterizer;
-	VkPipelineColorBlendAttachmentState _colorBlendAttachment;
-	VkPipelineMultisampleStateCreateInfo _multisampling;
-	VkPipelineLayout _pipelineLayout;
-	VkPipelineDepthStencilStateCreateInfo _depthStencil;
-
-	VkPipeline buildPipeline(VkDevice device, VkRenderPass pass);
 };
 
 class VulkanEngine {
@@ -134,6 +177,7 @@ public:
 
 	//swapchain setup
 	VkSwapchainKHR _swapchain;
+	std::vector<VkSemaphore> _renderSemaphores; // one per swapchain image AND NOT ONE PER FRAME!
 
 	VkFormat _swapchainFormat;
 	std::vector<VkImage> _swapchainImages;
@@ -152,6 +196,7 @@ public:
 
 	//allocator
 	VmaAllocator _allocator;
+	DescriptorAllocatorGrowable _globalDescriptorAllocator;
 
 	//Deletors
 	DeletionQueue _mainDeletionQueue;
@@ -172,7 +217,10 @@ public:
 	VkDescriptorSetLayout _globalSetLayout;
 	VkDescriptorSetLayout _objectSetLayout;
 	VkDescriptorSetLayout _singleTextureSetLayout;
+	VkDescriptorSetLayout _meshShaderLayout;
 	VkDescriptorPool _descriptorPool;
+
+	VkDescriptorSetLayout _materialLayout;
 
 	//Scene
 	GPUSceneData _sceneParameters;
@@ -183,11 +231,30 @@ public:
 	std::unordered_map<std::string, Mesh> _meshes;
 	std::unordered_map<std::string, Texture> _textures;
 
+	std::vector<std::shared_ptr<MeshAsset>> testMeshes;
+
 	//upload contect
 	UploadContext _uploadContext;
 
 	//camera
 	Camera _camera;
+
+	//default images
+	AllocatedImage _whiteImg;
+	AllocatedImage _blackImg;
+	AllocatedImage _greyImg;
+	AllocatedImage _errorCheckerBoardImg;
+
+	VkSampler _defaultSamplerLinear;
+	VkSampler _defaultSamplerNearest;
+
+	// default Material data
+	MaterialInstance _defaultData;
+	GLTFMetallic_Roughness _metalRoughMaterial;
+
+	//draw context
+	DrawContext mainDrawContext;
+	std::unordered_map<std::string, std::shared_ptr<Node>> loadedNodes;
 
 	//immediate submits, not synced with the renderr loop
 	void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)> && function);
@@ -197,6 +264,9 @@ public:
 	Material* getMaterial(const std::string name);
 	void drawObjects(VkCommandBuffer cmd, RenderObject* first, int count);
 	size_t padUniformBufferSize(size_t originalSize);
+	AllocatedImage createImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+	AllocatedImage createImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+	void destroyImage(const AllocatedImage& img);
 
 	bool _isInitialized{ false };
 	int _frameNumber {0};
@@ -219,9 +289,6 @@ public:
 	//run main loop
 	void run();
 
-	//shaders
-	bool loadShaderModule(const char* filePath, VkShaderModule* outShaderModule);
-
 	//descriptors
 	void initDescriptors();
 
@@ -231,6 +298,9 @@ public:
 	//meshes
 	void loadMeshes();
 
+	//meshes 2.0
+	GPUMeshBuffers uploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
+
 	void uploadMesh(Mesh& mesh);
 
 	//texture
@@ -239,8 +309,12 @@ public:
 	//scene
 	void initScene();
 
+	void updateScene();
+
 	//buffer
 	AllocatedBuffer createBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+
+	void InitDefaults();
 
 
 private:

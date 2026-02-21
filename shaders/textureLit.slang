@@ -10,7 +10,7 @@ struct VSOutput
 Sampler2D textureSampler;
 
 [shader("pixel")]
-float4 psmain(VSOutput vertIn) : SV_Target
+float4 main(VSOutput vertIn) : SV_Target
 {
     float3 color = textureSampler.Sample(vertIn.uv).xyz;
     return float4(color, 1.0f);           // set color
