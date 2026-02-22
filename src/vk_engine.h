@@ -156,6 +156,7 @@ struct RenderObject2
 struct DrawContext
 {
 	std::vector<RenderObject2> OpaqueSurfaces;
+	std::vector<RenderObject2> TranslucentSurfaces;
 };
 
 struct MeshPushConstants
@@ -255,6 +256,7 @@ public:
 	//draw context
 	DrawContext mainDrawContext;
 	std::unordered_map<std::string, std::shared_ptr<Node>> loadedNodes;
+	std::unordered_map < std::string, std::shared_ptr<LoadedGLTF>> loadedScenes;
 
 	//immediate submits, not synced with the renderr loop
 	void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)> && function);

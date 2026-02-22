@@ -4,26 +4,39 @@
 #include <unordered_map>
 #include <filesystem>
 #include <vk_mesh.h>
+#include <string>
+#include <vk_descriptors.h>
+#include <renderable.h>
+#include <memory>
 
-struct GLTFMaterial
-{
-	MaterialInstance data;
-};
+#include <fastgltf/parser.hpp>
 
-struct GeoSurface
-{
-	uint32_t startIndex;
-	uint32_t count;
-	std::shared_ptr<GLTFMaterial> material;
-};
-
-struct MeshAsset
-{
-	std::string name;
-	std::vector<GeoSurface> surfaces;
-	GPUMeshBuffers meshBuffers;
-};
-
+struct DrawContext;
 class VulkanEngine;
 
+struct LoadedGLTF : public IRenderable 
+{
+	std::unordered_map<std::string, std::shared_ptr<MeshAsset>> meshes;
+	std::unordered_map<std::string, std::shared_ptr<Node>> nodes;
+	std::unordered_map<std::string, AllocatedImage> images;
+	std::unordered_map<std::string, std::shared_ptr<GLTFMaterial>> materials;
+
+	//nodes that dont have a parent, for iterating trough the file in tree order
+	std::vector<std::shared_ptr<Node>> topNodes;
+	std::vector<VkSampler> samplers;
+	DescriptorAllocatorGrowable descriptorPool;
+	AllocatedBuffer materialDataBuffer;
+	VulkanEngine* engine;
+
+	~LoadedGLTF() { clearAll(); };
+
+	virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
+
+private:
+	void clearAll();
+};
+
 std::optional<std::vector<std::shared_ptr<MeshAsset>>> loadGltfMeshes(VulkanEngine* engine, std::filesystem::path filePath);
+std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::string_view filePath);
+std::optional<AllocatedImage> loadImage(VulkanEngine* engine, fastgltf::Asset& asset, fastgltf::Image& image);
+

@@ -237,15 +237,15 @@ void VulkanEngine::drawObjects(VkCommandBuffer cmd, RenderObject* first, int cou
     //MESH SHADERS TEST
 
     // GLTF TEST
-    for (const RenderObject2 draw : mainDrawContext.OpaqueSurfaces)
-    {
+
+    auto draw = [&](const RenderObject2& draw) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.materialInstance->material.pipeline);
 
         uint32_t uniform_offset = static_cast<uint32_t>(padUniformBufferSize(sizeof(GPUSceneData)) * frameIndex); //only send offset for corresponding dynamic bindings! ( we dont need one for static UB )
 
         //global descriptors
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.materialInstance->material.layout, 0, 1, &globalDescriptor, 1, &uniform_offset);
-        
+
         //material descriptor
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.materialInstance->material.layout, 1, 1, &draw.materialInstance->materialSet, 0, nullptr);
 
@@ -255,6 +255,30 @@ void VulkanEngine::drawObjects(VkCommandBuffer cmd, RenderObject* first, int cou
         vkCmdPushConstants(cmd, draw.materialInstance->material.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
         vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
+        };
+    for (const RenderObject2 r : mainDrawContext.OpaqueSurfaces)
+    {
+        draw(r);
+        //vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.materialInstance->material.pipeline);
+
+        //uint32_t uniform_offset = static_cast<uint32_t>(padUniformBufferSize(sizeof(GPUSceneData)) * frameIndex); //only send offset for corresponding dynamic bindings! ( we dont need one for static UB )
+
+        ////global descriptors
+        //vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.materialInstance->material.layout, 0, 1, &globalDescriptor, 1, &uniform_offset);
+        //
+        ////material descriptor
+        //vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.materialInstance->material.layout, 1, 1, &draw.materialInstance->materialSet, 0, nullptr);
+
+        //GPUDrawPushConstants pushConstants;
+        //pushConstants.worldMatrix = draw.transform;
+        //pushConstants.vertexBuffer = draw.vertexBufferAddress;
+        //vkCmdPushConstants(cmd, draw.materialInstance->material.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
+        //vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        //vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
+    }
+    for (const RenderObject2 r : mainDrawContext.TranslucentSurfaces)
+    {
+        draw(r);
     }
     // GLTF TEST
 
@@ -433,6 +457,8 @@ void VulkanEngine::cleanup()
         FrameData currentFrame = getCurrentFrame();
         vkWaitForFences(_device, 1, &currentFrame._renderFence, true, 100000000);
         _mainDeletionQueue.flush();
+
+        loadedScenes.clear();
 
         vkDestroyDevice(_device, nullptr);
         vkDestroySurfaceKHR(_instance, _surface, nullptr);
@@ -938,12 +964,15 @@ void VulkanEngine::initScene()
     //DescriptorWriter writer;
     //writer.writeImage(0, _textures["empire_diffuse"].imageView, blockySampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texturedMat->textureSet);
     //writer.updateSet(_device);
+
 }
 
 void VulkanEngine::updateScene()
 {
     mainDrawContext.OpaqueSurfaces.clear();
+    mainDrawContext.TranslucentSurfaces.clear();
     loadedNodes["Suzanne"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
+    loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
 }
 
 void VulkanEngine::InitDefaults()
@@ -1018,7 +1047,7 @@ void VulkanEngine::InitDefaults()
 
     _defaultData = _metalRoughMaterial.writeMaterial(_device, EMaterialPass::MainColor, materialResources, _globalDescriptorAllocator); //TODO init global descriptor allocator with the frame ones
 
-    //loading gltf mesh
+    // loading gltf mesh
     testMeshes = loadGltfMeshes(this, "..\\..\\assets\\basicMesh.glb").value();
 
     for (auto& m : testMeshes)
@@ -1036,6 +1065,13 @@ void VulkanEngine::InitDefaults()
 
         loadedNodes[m->name] = newNode;
     }
+
+    //Load GLTF test
+    std::string structurePath = { "..\\..\\assets\\structure.glb" };
+    auto structureFile = loadGltf(this, structurePath);
+    assert(structureFile.has_value());
+
+    loadedScenes["structure"] = *structureFile;
 }
 
 GPUMeshBuffers VulkanEngine::uploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices)
@@ -1629,7 +1665,7 @@ void GLTFMetallic_Roughness::buildPipelines(VulkanEngine* engine)
 
     //transparent pipeline variant creation
     pipelineBuilder.enableBlendingAdditive();
-    pipelineBuilder.setDepthTest(true, false, VK_COMPARE_OP_GREATER_OR_EQUAL);
+    pipelineBuilder.setDepthTest(true, false, VK_COMPARE_OP_LESS_OR_EQUAL);
     transparent.pipeline = pipelineBuilder.buildPipeline(engine->_device, engine->_renderPass);
 
     vkDestroyShaderModule(engine->_device, shaders, nullptr);

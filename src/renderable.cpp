@@ -1,6 +1,7 @@
 #include "renderable.h"
 
 #include "vk_engine.h"
+#include <vk_mesh.h>
 
 void Node::RefreshTransform(const glm::mat4& parentMatrix)
 {
@@ -33,6 +34,18 @@ void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx)
 
 		def.transform = nodeMatrix;
 		def.vertexBufferAddress = mesh->meshBuffers.vertexBufferAddress;
-		ctx.OpaqueSurfaces.push_back(def);
+
+		if (s.material->data.passType == EMaterialPass::Transparent)
+		{
+			ctx.TranslucentSurfaces.push_back(def);
+		}
+		else if (s.material->data.passType == EMaterialPass::MainColor)
+		{
+			ctx.OpaqueSurfaces.push_back(def);
+		}
+		else
+		{
+			assert(("invalid material pass type!"));
+		}
 	}
 }

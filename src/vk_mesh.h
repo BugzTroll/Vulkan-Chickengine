@@ -3,6 +3,7 @@
 #include "vk_types.h"
 #include "vector"
 #include "glm/vec3.hpp"
+#include <vk_types.h>
 
 struct VertexInputDescription
 {
@@ -41,5 +42,12 @@ struct GPUDrawPushConstants
 {
 	glm::mat4 worldMatrix;
 	VkDeviceAddress vertexBuffer;
+};
+
+struct MeshAsset
+{
+	std::string name;
+	std::vector<GeoSurface> surfaces;
+	GPUMeshBuffers meshBuffers;
 };
 

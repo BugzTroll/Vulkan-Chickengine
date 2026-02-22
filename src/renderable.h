@@ -3,7 +3,8 @@
 #include "glm/glm.hpp"
 #include <memory>
 #include <vector>
-#include "vk_loader.h"
+#include "vk_types.h"
+#include "vk_mesh.h"
 
 struct DrawContext;
 

@@ -15,6 +15,7 @@
 #include <vulkan/vk_enum_string_helper.h>
 #include <vk_mem_alloc.h>
 
+
 #include <fmt/core.h>
 
 #include <glm/mat4x4.hpp>
@@ -55,6 +56,19 @@ struct MaterialInstance
     Material material;
     VkDescriptorSet materialSet;
     EMaterialPass passType;
+};
+
+
+struct GLTFMaterial
+{
+    MaterialInstance data;
+};
+
+struct GeoSurface
+{
+    uint32_t startIndex;
+    uint32_t count;
+    std::shared_ptr<GLTFMaterial> material;
 };
 
 #define VK_CHECK(x)                                                  \

@@ -88,10 +88,10 @@ VSOutput vsmain(uint vertexID: SV_VertexID)
 float4 psmain(VSOutput vertIn): SV_Target
 {
     float lightValue = 1.0f; //max(dot(vertIn.normal, sceneUbo.sunlightDirection.xyz), 0.1f);
-    float3 color = vertIn.color * colorTexSampler.Sample(vertIn.uv).xyz;
-    float3 ambient = color * sceneUbo.ambiantColor.xyz;
+    float3 color = /*vertIn.color **/ colorTexSampler.Sample(vertIn.uv).xyz;
+    float3 ambient = color; //* sceneUbo.ambiantColor.xyz;
 
-    return float4(color * lightValue * ambient/*sceneUbo.sunlightColor.w + ambient*/, 1.0f);
+    return float4(color * lightValue * 1.0f /*ambientsceneUbo.sunlightColor.w + ambient*/, 1.0f);
 
     //return float4(1.0f, 0.0f, 0.0f, 1.0f);
 }
