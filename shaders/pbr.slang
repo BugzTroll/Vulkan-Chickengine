@@ -91,6 +91,7 @@ float4 psmain(VSOutput vertIn): SV_Target
     float3 color = /*vertIn.color **/ colorTexSampler.Sample(vertIn.uv).xyz;
     float3 ambient = color; //* sceneUbo.ambiantColor.xyz;
 
+    color = vertIn.normal;
     return float4(color * lightValue * 1.0f /*ambientsceneUbo.sunlightColor.w + ambient*/, 1.0f);
 
     //return float4(1.0f, 0.0f, 0.0f, 1.0f);

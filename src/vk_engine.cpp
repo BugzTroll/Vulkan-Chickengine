@@ -10,6 +10,11 @@
 //bootstrap libraries
 #include "VkBootstrap.h"
 
+//imgui
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_vulkan.h"
+
 #include <chrono>
 #include <thread>
 
@@ -24,7 +29,6 @@
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
-
 
 #include "vk_texture.h"
 #include "vk_pipelines.h"
@@ -221,23 +225,22 @@ void VulkanEngine::drawObjects(VkCommandBuffer cmd, RenderObject* first, int cou
     }
 
     //MESH SHADERS TEST
-    Material* meshShaderMat = getMaterial("meshShader");
-    if (meshShaderMat)
-    {
-        VkDescriptorSet meshShaderDescriptor = getCurrentFrame()._frameDescriptors.allocate(_device, _meshShaderLayout);
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshShaderMat->pipeline);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshShaderMat->layout, 0, 1, &meshShaderDescriptor, 0, nullptr);
+    //Material* meshShaderMat = getMaterial("meshShader");
+    //if (meshShaderMat)
+    //{
+    //    VkDescriptorSet meshShaderDescriptor = getCurrentFrame()._frameDescriptors.allocate(_device, _meshShaderLayout);
+    //    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshShaderMat->pipeline);
+    //    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshShaderMat->layout, 0, 1, &meshShaderDescriptor, 0, nullptr);
 
-        PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT_ptr = (PFN_vkCmdDrawMeshTasksEXT)vkGetDeviceProcAddr(_device, "vkCmdDrawMeshTasksEXT");
-        if (vkCmdDrawMeshTasksEXT_ptr != NULL) {
-            //vkCmdDrawMeshTasksEXT();
-            vkCmdDrawMeshTasksEXT_ptr(cmd, 1, 1, 1);
-        }
-    }
+    //    PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT_ptr = (PFN_vkCmdDrawMeshTasksEXT)vkGetDeviceProcAddr(_device, "vkCmdDrawMeshTasksEXT");
+    //    if (vkCmdDrawMeshTasksEXT_ptr != NULL) {
+    //        //vkCmdDrawMeshTasksEXT();
+    //        vkCmdDrawMeshTasksEXT_ptr(cmd, 1, 1, 1);
+    //    }
+    //}
     //MESH SHADERS TEST
 
-    // GLTF TEST
-
+    //Draw GLTF Meshes
     auto draw = [&](const RenderObject2& draw) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.materialInstance->material.pipeline);
 
@@ -256,31 +259,14 @@ void VulkanEngine::drawObjects(VkCommandBuffer cmd, RenderObject* first, int cou
         vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
         };
-    for (const RenderObject2 r : mainDrawContext.OpaqueSurfaces)
-    {
-        draw(r);
-        //vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.materialInstance->material.pipeline);
-
-        //uint32_t uniform_offset = static_cast<uint32_t>(padUniformBufferSize(sizeof(GPUSceneData)) * frameIndex); //only send offset for corresponding dynamic bindings! ( we dont need one for static UB )
-
-        ////global descriptors
-        //vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.materialInstance->material.layout, 0, 1, &globalDescriptor, 1, &uniform_offset);
-        //
-        ////material descriptor
-        //vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.materialInstance->material.layout, 1, 1, &draw.materialInstance->materialSet, 0, nullptr);
-
-        //GPUDrawPushConstants pushConstants;
-        //pushConstants.worldMatrix = draw.transform;
-        //pushConstants.vertexBuffer = draw.vertexBufferAddress;
-        //vkCmdPushConstants(cmd, draw.materialInstance->material.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
-        //vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        //vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
-    }
-    for (const RenderObject2 r : mainDrawContext.TranslucentSurfaces)
+    for (const RenderObject2& r : mainDrawContext.OpaqueSurfaces)
     {
         draw(r);
     }
-    // GLTF TEST
+    for (const RenderObject2& r : mainDrawContext.TranslucentSurfaces)
+    {
+        draw(r);
+    }
 
     vmaUnmapMemory(_allocator, objectBuffer._allocation);
 }
@@ -398,6 +384,15 @@ void VulkanEngine::destroyImage(const AllocatedImage& img)
     vmaDestroyImage(_allocator, img._image, img._allocation);
 }
 
+void VulkanEngine::DrawImgui(VkCommandBuffer cmd)
+{
+    //VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    //VkRenderingInfo renderInfo = vkinit::rendering_info(_windowExtent, &colorAttachment, nullptr);
+
+    //renderpass
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+}
+
 VulkanEngine& VulkanEngine::Get() { return *loadedEngine; }
 
 void VulkanEngine::init()
@@ -437,6 +432,8 @@ void VulkanEngine::init()
     initDescriptors();
 
     initPipelines();
+
+    initImgui();
 
     // load the scene data
     loadMeshes();
@@ -526,10 +523,13 @@ void VulkanEngine::draw()
 
     //Drawing
     vkCmdBeginRenderPass(currentFrame._mainCommandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);  //Begin render pass
-
     drawObjects(currentFrame._mainCommandBuffer, &_renderables[0], static_cast<int>(_renderables.size()));
-
+    DrawImgui(currentFrame._mainCommandBuffer);
     vkCmdEndRenderPass(currentFrame._mainCommandBuffer);
+
+    //vkCmdBeginRenderPass(currentFrame._mainCommandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);  //Begin render pass
+    //DrawImgui(currentFrame._mainCommandBuffer);
+    //vkCmdEndRenderPass(currentFrame._mainCommandBuffer);
 
     VK_CHECK(vkEndCommandBuffer(currentFrame._mainCommandBuffer)); //end command buffer
 
@@ -616,6 +616,8 @@ void VulkanEngine::run()
                 const char* keyName = SDL_GetKeyName(e.key.keysym.sym);
                 std::cout << keyName << std::endl;
             }
+
+            ImGui_ImplSDL2_ProcessEvent(&e);
         }
 
         //Send events based on key state
@@ -663,6 +665,13 @@ void VulkanEngine::run()
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
+
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::ShowDemoWindow(); // TODO marie replace this with custom imgui
+        ImGui::Render();
 
         draw();
     }
@@ -938,11 +947,11 @@ void VulkanEngine::initScene()
     }
 
     //lost empire
-    RenderObject map;
-    map.mesh = getMesh("lostEmpire");
-    map.material = getMaterial("texturedMesh");
-    map.transformMatrix = glm::translate(glm::vec3{ 5, -10, 0 });
-    _renderables.push_back(map); //TODO remove lostEmpire
+    //RenderObject map;
+    //map.mesh = getMesh("lostEmpire");
+    //map.material = getMaterial("texturedMesh");
+    //map.transformMatrix = glm::translate(glm::vec3{ 5, -10, 0 });
+    //_renderables.push_back(map); //TODO remove lostEmpire
 
     //Create sampler for the texture
     //VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
@@ -972,7 +981,17 @@ void VulkanEngine::updateScene()
     mainDrawContext.OpaqueSurfaces.clear();
     mainDrawContext.TranslucentSurfaces.clear();
     loadedNodes["Suzanne"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
-    loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
+    //loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
+
+    glm::vec3 forwardDir = _camera.cameraForward;
+    glm::mat4 chickenFeetLocation = glm::translate(glm::mat4{ 1.f }, _camera.cameraPosition + (_camera.cameraForward * 5.0f));//glm::translate(chickenFeetLocation, forwardDir * 20.0f);
+    chickenFeetLocation = glm::translate(chickenFeetLocation, _camera.cameraRight * 4.0f + _camera.cameraUp * - 2.0f);
+    chickenFeetLocation = glm::scale(chickenFeetLocation, glm::vec3(0.4, 0.4, 0.4));
+    chickenFeetLocation = chickenFeetLocation;
+
+    //chickenFeetLocation = glm::scale(glm::inverse(_camera.viewProjection), glm::vec3(0.1, 0.1, 0.1));
+
+    loadedScenes["chickenFoot"]->Draw(chickenFeetLocation, mainDrawContext);
 }
 
 void VulkanEngine::InitDefaults()
@@ -1072,6 +1091,70 @@ void VulkanEngine::InitDefaults()
     assert(structureFile.has_value());
 
     loadedScenes["structure"] = *structureFile;
+
+    std::string chickenFootPath = { "..\\..\\assets\\chicken_foot.glb" };
+    auto chickenFootFile = loadGltf(this, chickenFootPath);
+    assert(chickenFootFile.has_value());
+
+    loadedScenes["chickenFoot"] = *chickenFootFile;
+}
+
+void VulkanEngine::initImgui()
+{
+    // imgui descriptor pool
+    VkDescriptorPoolSize poolSizes[] =
+    {
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
+    };
+
+    VkDescriptorPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.pNext = nullptr;
+    poolInfo.poolSizeCount = (uint32_t)std::size(poolSizes);
+    poolInfo.pPoolSizes = poolSizes;
+    poolInfo.maxSets = 1000;
+
+    VkDescriptorPool imguiPool;
+    VK_CHECK(vkCreateDescriptorPool(_device, &poolInfo, nullptr, &imguiPool));
+
+    //imgui lib init
+
+    ImGui::CreateContext();
+    ImGui_ImplSDL2_InitForVulkan(_window);
+
+    ImGui_ImplVulkan_InitInfo initInfo = {};
+    initInfo.Instance = _instance;
+    initInfo.PhysicalDevice = _chosenGPU;
+    initInfo.Device = _device;
+    initInfo.Queue = _graphicsQueue;
+    initInfo.DescriptorPool = imguiPool;
+    initInfo.MinImageCount = 3;
+    initInfo.ImageCount = 3;
+    initInfo.UseDynamicRendering = false; //TODO marie enable dynamic rendering at some point
+    initInfo.RenderPass = _renderPass;
+
+    initInfo.PipelineRenderingCreateInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
+    initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats = &_swapchainFormat;
+
+    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    
+    ImGui_ImplVulkan_Init(&initInfo);
+    ImGui_ImplVulkan_CreateFontsTexture();
+
+    _mainDeletionQueue.pushFunction([=]() {
+        ImGui_ImplVulkan_Shutdown();
+        vkDestroyDescriptorPool(_device, imguiPool, nullptr);
+     });
 }
 
 GPUMeshBuffers VulkanEngine::uploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices)

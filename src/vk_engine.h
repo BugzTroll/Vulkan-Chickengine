@@ -269,6 +269,7 @@ public:
 	AllocatedImage createImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 	AllocatedImage createImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 	void destroyImage(const AllocatedImage& img);
+	void DrawImgui(VkCommandBuffer cmd);
 
 	bool _isInitialized{ false };
 	int _frameNumber {0};
@@ -317,6 +318,9 @@ public:
 	AllocatedBuffer createBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
 	void InitDefaults();
+
+	//imgui
+	void initImgui();
 
 
 private:
